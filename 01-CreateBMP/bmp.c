@@ -1,254 +1,507 @@
-#include<stdio.h>
-#include<unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
 #include "bmp.h"
 
-#define		BMP_MAGICNUM		0x4d42
 
-
-#pragma pack(1)
-/* *
-* @brief bmp头信息结构
-*/
-typedef struct
+union colortable_union* read_allocate_colortable(const char* file_name, struct bitmapheader* bmheader)
 {
-	unsigned short usMagicNum;
-	unsigned int unFileSize;
-	unsigned short usReserve1;
-	unsigned short usReserve2;
-	unsigned int unDataOffest;
-}bmp_header_t;
+    union colortable_union* colortable = NULL;
+    char  buffer[10];
+    unsigned long  ull;
+    FILE  *fp;
+    long  table_size = (long)pow(2, bmheader->bitsperpixel);
 
-/* *
-* @brief bmp信息头
-*/
-typedef struct
-{
-	unsigned int unInfoSize;
-	unsigned int unImageWidth;
-	unsigned int unImageHeight;
-	unsigned short usPlanes;
-	unsigned short usBitCount;
-	unsigned int unCompression;
-	unsigned int unImageSize;
-	unsigned int unXPelsPerMeter;
-	unsigned int unYPelsPerMeter;
-	unsigned int unPalletIndex;
-	unsigned int unPalletImportIndex;
-}bmp_infoheader_t;
+    fp = fopen(file_name, "rb");
+    colortable = malloc(sizeof(union colortable_union) * table_size);
 
-/* *
-* @brief rgb调色板
-*/
-typedef struct
-{
-	unsigned char ucBlue;
-	unsigned char ucGreen;
-	unsigned char ucRed;
-	unsigned char ucReserve;
-}rgb_quad_t;
+    fseek(fp, 54, SEEK_SET);
 
-#pragma pack()
+    for (int i = 0; i < table_size; i++)
+    {
+        fread(buffer, 1, 4, fp);
+        extract_ulong_from_buffer(buffer, 1, 0, &ull);
+        colortable[i].l_num = ull;
+    }
 
-/* *
-* @brief rgb调色板数据表
-*/
-static unsigned char ucColorTable[] =
-{
-0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x00, 0x02, 0x02, 0x02, 0x00, 0x03, 0x03, 0x03, 0x00,
-0x04, 0x04, 0x04, 0x00, 0x05, 0x05, 0x05, 0x00, 0x06, 0x06, 0x06, 0x00, 0x07, 0x07, 0x07, 0x00,
-0x08, 0x08, 0x08, 0x00, 0x09, 0x09, 0x09, 0x00, 0x0a, 0x0a, 0x0a, 0x00, 0x0b, 0x0b, 0x0b, 0x00,
-0x0c, 0x0c, 0x0c, 0x00, 0x0d, 0x0d, 0x0d, 0x00, 0x0e, 0x0e, 0x0e, 0x00, 0x0f, 0x0f, 0x0f, 0x00,
-
-0x10, 0x10, 0x10, 0x00, 0x11, 0x11, 0x11, 0x00, 0x12, 0x12, 0x12, 0x00, 0x13, 0x13, 0x13, 0x00,
-0x14, 0x14, 0x14, 0x00, 0x15, 0x15, 0x15, 0x00, 0x16, 0x16, 0x16, 0x00, 0x17, 0x17, 0x17, 0x00,
-0x18, 0x18, 0x18, 0x00, 0x19, 0x19, 0x19, 0x00, 0x1a, 0x1a, 0x1a, 0x00, 0x1b, 0x1b, 0x1b, 0x00,
-0x1c, 0x1c, 0x1c, 0x00, 0x1d, 0x1d, 0x1d, 0x00, 0x1e, 0x1e, 0x1e, 0x00, 0x1f, 0x1f, 0x1f, 0x00,
-
-0x20, 0x20, 0x20, 0x00, 0x21, 0x21, 0x21, 0x00, 0x22, 0x22, 0x22, 0x00, 0x23, 0x23, 0x23, 0x00,
-0x24, 0x24, 0x24, 0x00, 0x25, 0x25, 0x25, 0x00, 0x26, 0x26, 0x26, 0x00, 0x27, 0x27, 0x27, 0x00,
-0x28, 0x28, 0x28, 0x00, 0x29, 0x29, 0x29, 0x00, 0x2a, 0x2a, 0x2a, 0x00, 0x2b, 0x2b, 0x2b, 0x00,
-0x2c, 0x2c, 0x2c, 0x00, 0x2d, 0x2d, 0x2d, 0x00, 0x2e, 0x2e, 0x2e, 0x00, 0x2f, 0x2f, 0x2f, 0x00,
-
-0x30, 0x30, 0x30, 0x00, 0x31, 0x31, 0x31, 0x00, 0x32, 0x32, 0x32, 0x00, 0x33, 0x33, 0x33, 0x00,
-0x34, 0x34, 0x34, 0x00, 0x35, 0x35, 0x35, 0x00, 0x36, 0x36, 0x36, 0x00, 0x37, 0x37, 0x37, 0x00,
-0x38, 0x38, 0x38, 0x00, 0x39, 0x39, 0x39, 0x00, 0x3a, 0x3a, 0x3a, 0x00, 0x3b, 0x3b, 0x3b, 0x00,
-0x3c, 0x3c, 0x3c, 0x00, 0x3d, 0x3d, 0x3d, 0x00, 0x3e, 0x3e, 0x3e, 0x00, 0x3f, 0x3f, 0x3f, 0x00,
-
-0x40, 0x40, 0x40, 0x00, 0x41, 0x41, 0x41, 0x00, 0x42, 0x42, 0x42, 0x00, 0x43, 0x43, 0x43, 0x00,
-0x44, 0x44, 0x44, 0x00, 0x45, 0x45, 0x45, 0x00, 0x46, 0x46, 0x46, 0x00, 0x47, 0x47, 0x47, 0x00,
-0x48, 0x48, 0x48, 0x00, 0x49, 0x49, 0x49, 0x00, 0x4a, 0x4a, 0x4a, 0x00, 0x4b, 0x4b, 0x4b, 0x00,
-0x4c, 0x4c, 0x4c, 0x00, 0x4d, 0x4d, 0x4d, 0x00, 0x4e, 0x4e, 0x4e, 0x00, 0x4f, 0x4f, 0x4f, 0x00,
-
-0x50, 0x50, 0x50, 0x00, 0x51, 0x51, 0x51, 0x00, 0x52, 0x52, 0x52, 0x00, 0x53, 0x53, 0x53, 0x00,
-0x54, 0x54, 0x54, 0x00, 0x55, 0x55, 0x55, 0x00, 0x56, 0x56, 0x56, 0x00, 0x57, 0x57, 0x57, 0x00,
-0x58, 0x58, 0x58, 0x00, 0x59, 0x59, 0x59, 0x00, 0x5a, 0x5a, 0x5a, 0x00, 0x5b, 0x5b, 0x5b, 0x00,
-0x5c, 0x5c, 0x5c, 0x00, 0x5d, 0x5d, 0x5d, 0x00, 0x5e, 0x5e, 0x5e, 0x00, 0x5f, 0x5f, 0x5f, 0x00,
-
-0x60, 0x60, 0x60, 0x00, 0x61, 0x61, 0x61, 0x00, 0x62, 0x62, 0x62, 0x00, 0x63, 0x63, 0x63, 0x00,
-0x64, 0x64, 0x64, 0x00, 0x65, 0x65, 0x65, 0x00, 0x66, 0x66, 0x66, 0x00, 0x67, 0x67, 0x67, 0x00,
-0x68, 0x68, 0x68, 0x00, 0x69, 0x69, 0x69, 0x00, 0x6a, 0x6a, 0x6a, 0x00, 0x6b, 0x6b, 0x6b, 0x00,
-0x6c, 0x6c, 0x6c, 0x00, 0x6d, 0x6d, 0x6d, 0x00, 0x6e, 0x6e, 0x6e, 0x00, 0x6f, 0x6f, 0x6f, 0x00,
-
-0x70, 0x70, 0x70, 0x00, 0x71, 0x71, 0x71, 0x00, 0x72, 0x72, 0x72, 0x00, 0x73, 0x73, 0x73, 0x00,
-0x74, 0x74, 0x74, 0x00, 0x75, 0x75, 0x75, 0x00, 0x76, 0x76, 0x76, 0x00, 0x77, 0x77, 0x77, 0x00,
-0x78, 0x78, 0x78, 0x00, 0x79, 0x79, 0x79, 0x00, 0x7a, 0x7a, 0x7a, 0x00, 0x7b, 0x7b, 0x7b, 0x00,
-0x7c, 0x7c, 0x7c, 0x00, 0x7d, 0x7d, 0x7d, 0x00, 0x7e, 0x7e, 0x7e, 0x00, 0x7f, 0x7f, 0x7f, 0x00,
-
-0x80, 0x80, 0x80, 0x00, 0x81, 0x81, 0x81, 0x00, 0x82, 0x82, 0x82, 0x00, 0x83, 0x83, 0x83, 0x00,
-0x84, 0x84, 0x84, 0x00, 0x85, 0x85, 0x85, 0x00, 0x86, 0x86, 0x86, 0x00, 0x87, 0x87, 0x87, 0x00,
-0x88, 0x88, 0x88, 0x00, 0x89, 0x89, 0x89, 0x00, 0x8a, 0x8a, 0x8a, 0x00, 0x8b, 0x8b, 0x8b, 0x00,
-0x8c, 0x8c, 0x8c, 0x00, 0x8d, 0x8d, 0x8d, 0x00, 0x8e, 0x8e, 0x8e, 0x00, 0x8f, 0x8f, 0x8f, 0x00,
-
-0x90, 0x90, 0x90, 0x00, 0x91, 0x91, 0x91, 0x00, 0x92, 0x92, 0x92, 0x00, 0x93, 0x93, 0x93, 0x00,
-0x94, 0x94, 0x94, 0x00, 0x95, 0x95, 0x95, 0x00, 0x96, 0x96, 0x96, 0x00, 0x97, 0x97, 0x97, 0x00,
-0x98, 0x98, 0x98, 0x00, 0x99, 0x99, 0x99, 0x00, 0x9a, 0x9a, 0x9a, 0x00, 0x9b, 0x9b, 0x9b, 0x00,
-0x9c, 0x9c, 0x9c, 0x00, 0x9d, 0x9d, 0x9d, 0x00, 0x9e, 0x9e, 0x9e, 0x00, 0x9f, 0x9f, 0x9f, 0x00,
-
-0xa0, 0xa0, 0xa0, 0x00, 0xa1, 0xa1, 0xa1, 0x00, 0xa2, 0xa2, 0xa2, 0x00, 0xa3, 0xa3, 0xa3, 0x00,
-0xa4, 0xa4, 0xa4, 0x00, 0xa5, 0xa5, 0xa5, 0x00, 0xa6, 0xa6, 0xa6, 0x00, 0xa7, 0xa7, 0xa7, 0x00,
-0xa8, 0xa8, 0xa8, 0x00, 0xa9, 0xa9, 0xa9, 0x00, 0xaa, 0xaa, 0xaa, 0x00, 0xab, 0xab, 0xab, 0x00,
-0xac, 0xac, 0xac, 0x00, 0xad, 0xad, 0xad, 0x00, 0xae, 0xae, 0xae, 0x00, 0xaf, 0xaf, 0xaf, 0x00,
-
-0xb0, 0xb0, 0xb0, 0x00, 0xb1, 0xb1, 0xb1, 0x00, 0xb2, 0xb2, 0xb2, 0x00, 0xb3, 0xb3, 0xb3, 0x00,
-0xb4, 0xb4, 0xb4, 0x00, 0xb5, 0xb5, 0xb5, 0x00, 0xb6, 0xb6, 0xb6, 0x00, 0xb7, 0xb7, 0xb7, 0x00,
-0xb8, 0xb8, 0xb8, 0x00, 0xb9, 0xb9, 0xb9, 0x00, 0xba, 0xba, 0xba, 0x00, 0xbb, 0xbb, 0xbb, 0x00,
-0xbc, 0xbc, 0xbc, 0x00, 0xbd, 0xbd, 0xbd, 0x00, 0xbe, 0xbe, 0xbe, 0x00, 0xbf, 0xbf, 0xbf, 0x00,
-
-0xc0, 0xc0, 0xc0, 0x00, 0xc1, 0xc1, 0xc1, 0x00, 0xc2, 0xc2, 0xc2, 0x00, 0xc3, 0xc3, 0xc3, 0x00,
-0xc4, 0xc4, 0xc4, 0x00, 0xc5, 0xc5, 0xc5, 0x00, 0xc6, 0xc6, 0xc6, 0x00, 0xc7, 0xc7, 0xc7, 0x00,
-0xc8, 0xc8, 0xc8, 0x00, 0xc9, 0xc9, 0xc9, 0x00, 0xca, 0xca, 0xca, 0x00, 0xcb, 0xcb, 0xcb, 0x00,
-0xcc, 0xcc, 0xcc, 0x00, 0xcd, 0xcd, 0xcd, 0x00, 0xce, 0xce, 0xce, 0x00, 0xcf, 0xcf, 0xcf, 0x00,
-
-0xd0, 0xd0, 0xd0, 0x00, 0xd1, 0xd1, 0xd1, 0x00, 0xd2, 0xd2, 0xd2, 0x00, 0xd3, 0xd3, 0xd3, 0x00,
-0xd4, 0xd4, 0xd4, 0x00, 0xd5, 0xd5, 0xd5, 0x00, 0xd6, 0xd6, 0xd6, 0x00, 0xd7, 0xd7, 0xd7, 0x00,
-0xd8, 0xd8, 0xd8, 0x00, 0xd9, 0xd9, 0xd9, 0x00, 0xda, 0xda, 0xda, 0x00, 0xdb, 0xdb, 0xdb, 0x00,
-0xdc, 0xdc, 0xdc, 0x00, 0xdd, 0xdd, 0xdd, 0x00, 0xde, 0xde, 0xde, 0x00, 0xdf, 0xdf, 0xdf, 0x00,
-
-0xe0, 0xe0, 0xe0, 0x00, 0xe1, 0xe1, 0xe1, 0x00, 0xe2, 0xe2, 0xe2, 0x00, 0xe3, 0xe3, 0xe3, 0x00,
-0xe4, 0xe4, 0xe4, 0x00, 0xe5, 0xe5, 0xe5, 0x00, 0xe6, 0xe6, 0xe6, 0x00, 0xe7, 0xe7, 0xe7, 0x00,
-0xe8, 0xe8, 0xe8, 0x00, 0xe9, 0xe9, 0xe9, 0x00, 0xea, 0xea, 0xea, 0x00, 0xeb, 0xeb, 0xeb, 0x00,
-0xec, 0xec, 0xec, 0x00, 0xed, 0xed, 0xed, 0x00, 0xee, 0xee, 0xee, 0x00, 0xef, 0xef, 0xef, 0x00,
-
-0xf0, 0xf0, 0xf0, 0x00, 0xf1, 0xf1, 0xf1, 0x00, 0xf2, 0xf2, 0xf2, 0x00, 0xf3, 0xf3, 0xf3, 0x00,
-0xf4, 0xf4, 0xf4, 0x00, 0xf5, 0xf5, 0xf5, 0x00, 0xf6, 0xf6, 0xf6, 0x00, 0xf7, 0xf7, 0xf7, 0x00,
-0xf8, 0xf8, 0xf8, 0x00, 0xf9, 0xf9, 0xf9, 0x00, 0xfa, 0xfa, 0xfa, 0x00, 0xfb, 0xfb, 0xfb, 0x00,
-0xfc, 0xfc, 0xfc, 0x00, 0xfd, 0xfd, 0xfd, 0x00, 0xfe, 0xfe, 0xfe, 0x00, 0xff, 0xff, 0xff, 0x00,
-};
-
-
-
-/**
-* @brief BMP_IsBmp
-* @params filepath表示待检测的bmp文件路径
-* @note 通过文件魔术信息判断是否是bmp文件
-* @return true表示是bmp文件，false表示非bmp文件
-*/
-bool BMP_IsBmp(unsigned char *ucFilepath)
-{
-	if(NULL == ucFilepath)
-	{
-		return false;
-	}
-	
-	
-	bmp_header_t bmpheader;
-	FILE *fp = NULL;
-	if( NULL == (fp = fopen(ucFilepath, "r")))
-	{
-		return false;
-	}
-	
-	fread(&bmpheader, sizeof(bmp_header_t), 1, fp);	
-	
-	if(bmpheader.usMagicNum == BMP_MAGICNUM)
-	{
-		return false;
-	} 	
-	
-	return true;
+    fclose(fp);
+    return colortable;
 }
 
-/**
-* @brief BMP_GetBmpInfo
-* @params ucFilepath表示bmp文件路径，unWidth表示图像宽度，unHeight表示图像高度，bmptype表示bmp类型
-* @note 读取信息头数据，提取相应的数据信息
-* @return 返回bmp错误码
-*/
-bmp_ret	BMP_GetBmpInfo(unsigned char *ucFilepath,unsigned int *unWidth,unsigned int *unHeight,bmp_bitwide_t *bmptype)
+void free_colortable(union colortable_union* colortable)
 {
-
-	return bmp_ok;
+    free(colortable);
 }
 
-
-/**
-* @brief BMP_GetBmpData
-* @params ucFilepath表示待获取的bmp文件路径，tInfo表示获取图像数据信息指针
-* @note 读取bmp文件的图像数据
-* @return 返回bmp错误码
-*/
-bmp_ret BMP_GetBmpData(unsigned char *ucFilepath, bmp_datainfo_t *tInfo)
+int get_image_size(const char* file_name, long* rows, long* cols)
 {
+    struct bitmapheader bmph;
 
-	return bmp_ok;
-}
+    read_bm_header(file_name, &bmph);
+    *rows = bmph.height;
+    *cols = bmph.width;
 
-/**
-* @brief BMP_EncapsulateBmp
-* @params ucFilepath待生成的文件路径, tInfo表示待封装的图像数据信息指针
-* @note 读取bmp文件的图像数据
-* @return 返回bmp错误码
-*/
-bmp_ret BMP_EncapsulateBmp(unsigned char *ucFilepath,bmp_datainfo_t *tInfo)
+    return 1;
+}  /* ends get_image_size */
+
+short **allocate_image_array(long length, long width)
 {
-	
-	if(NULL == ucFilepath || NULL == tInfo)
-	{
-		return bmp_argerr; 
-	}
+   int i;
+   short **the_array;
 
-	FILE *fp = NULL;
-	bmp_header_t tBmpheader;
-	bmp_infoheader_t tBmpinfo;
+   the_array = malloc(length * sizeof(short  *));
+   for(i=0; i<length; i++){
+      the_array[i] = malloc(width * sizeof(short ));
+      if(the_array[i] == '\0'){
+         printf("\n\tmalloc of the_image[%d] failed", i);
+      }  /* ends if */
+   }  /* ends loop over i */
+   return(the_array);
+}  /* ends allocate_image_array */
 
-	tBmpheader.usMagicNum = BMP_MAGICNUM;
-	tBmpheader.unFileSize = sizeof(bmp_header_t) + sizeof(bmp_infoheader_t);
-	tBmpheader.usReserve1 = 0;
-	tBmpheader.usReserve2 = 0;
-	tBmpheader.unDataOffest = tInfo->tImgWide >= BMP_16WIDE ? tBmpheader.unFileSize : tBmpheader.unFileSize + sizeof(ucColorTable);
-	tBmpheader.unFileSize = tBmpheader.unDataOffest + tInfo->unWidth*tInfo->unHeight;
+int free_image_array(short **the_array, long length)
+{
+    int i;
+    for(i=0; i<length; i++)
+        free(the_array[i]);
+    return(1);
+}  /* ends free_image_array */
 
-	tBmpinfo.unInfoSize = 0x28;
-	tBmpinfo.unImageWidth = tInfo->unWidth;
-	tBmpinfo.unImageHeight = tInfo->unHeight;
-	tBmpinfo.usPlanes = 1;
-	tBmpinfo.usBitCount = tInfo->tImgWide; 
-	tBmpinfo.unCompression = 0;
-	tBmpinfo.unImageSize = 0;
-	tBmpinfo.unXPelsPerMeter = 0;
-	tBmpinfo.unYPelsPerMeter = 0;
-	tBmpinfo.unPalletIndex = 0;
-	tBmpinfo.unPalletImportIndex = 0;
+int calculate_pad(long width)
+{
+   int pad = 0;
+   pad = ( (width%4) == 0) ? 0 : (4-(width%4));
+   return(pad);
+}  /* ends calculate_pad */
 
-	if(NULL == (fp = fopen(ucFilepath, "w+")))
-	{
-		return bmp_fileopen_failed; 
-	}
+void create_allocate_bmp_file(const char *file_name, struct bmpfileheader *file_header, struct bitmapheader *bmheader)
+{
+    char buffer[100];
+    int  i, pad = 0;
+    FILE *fp;
 
-	fwrite(&tBmpheader, sizeof(bmp_header_t), 1, fp);
-	fwrite(&tBmpinfo, sizeof(bmp_infoheader_t), 1, fp);
+    pad = calculate_pad(bmheader->width);
 
-	if(tInfo->tImgWide < BMP_16WIDE)
-	{
-		fwrite(ucColorTable, sizeof(ucColorTable), 1, fp);
-	}
+    bmheader->size         =  40;
+    bmheader->planes       =   1;
+    bmheader->bitsperpixel =   8;
+    bmheader->compression  =   0;
+    bmheader->sizeofbitmap = bmheader->height * 
+                            (bmheader->width + pad);
+    bmheader->horzres      = 300;
+    bmheader->vertres      = 300;
+    bmheader->colorsused   = 256;
+    bmheader->colorsimp    = 256;
 
-	//fwrite(*tInfo->ucImgData, tInfo->unWidth*tInfo->unHeight, 1, fp);
-	fwrite(tInfo->ucImgData, tInfo->unWidth*tInfo->unHeight, 1, fp);
+    file_header->filetype     = 0x4D42;
+    file_header->reserved1    =  0;
+    file_header->reserved2    =  0;
+    file_header->bitmapoffset = 14 + 
+                                bmheader->size +
+                                bmheader->colorsused*4;
+    file_header->filesize     = file_header->bitmapoffset +
+                                bmheader->sizeofbitmap;
 
-	fclose(fp);
+    if((fp = fopen(file_name, "wb")) == NULL){
+      printf("\nERROR Could not create file %s",
+             file_name);
+      exit(2);
+    }
 
-	return bmp_ok;
-}
+    insert_ushort_into_buffer(buffer, 0, file_header->filetype);
+    fwrite(buffer, 1, 2, fp);
 
+    insert_ulong_into_buffer(buffer, 0, file_header->filesize);
+    fwrite(buffer, 1, 4, fp);
+
+    insert_short_into_buffer(buffer, 0, file_header->reserved1);
+    fwrite(buffer, 1, 2, fp);
+
+    insert_short_into_buffer(buffer, 0, file_header->reserved2);
+    fwrite(buffer, 1, 2, fp);
+
+    insert_ulong_into_buffer(buffer, 0, file_header->bitmapoffset);
+    fwrite(buffer, 1, 4, fp);
+
+
+      /*********************************************
+      *
+      *   Write the 40-byte bit map header.
+      *
+      *********************************************/
+
+    insert_ulong_into_buffer(buffer, 0, bmheader->size);
+    fwrite(buffer, 1, 4, fp);
+
+    insert_long_into_buffer(buffer, 0, bmheader->width);
+    fwrite(buffer, 1, 4, fp);
+
+    insert_long_into_buffer(buffer, 0, bmheader->height);
+    fwrite(buffer, 1, 4, fp);
+
+    insert_ushort_into_buffer(buffer, 0, bmheader->planes);
+    fwrite(buffer, 1, 2, fp);
+
+    insert_ushort_into_buffer(buffer, 0, bmheader->bitsperpixel);
+    fwrite(buffer, 1, 2, fp);
+
+    insert_ulong_into_buffer(buffer, 0, bmheader->compression);
+    fwrite(buffer, 1, 4, fp);
+
+    insert_ulong_into_buffer(buffer, 0, bmheader->sizeofbitmap);
+    fwrite(buffer, 1, 4, fp);
+
+    insert_ulong_into_buffer(buffer, 0, bmheader->horzres);
+    fwrite(buffer, 1, 4, fp);
+
+    insert_ulong_into_buffer(buffer, 0, bmheader->vertres);
+    fwrite(buffer, 1, 4, fp);
+
+    insert_ulong_into_buffer(buffer, 0, bmheader->colorsused);
+    fwrite(buffer, 1, 4, fp);
+
+    insert_ulong_into_buffer(buffer, 0, bmheader->colorsimp);
+    fwrite(buffer, 1, 4, fp);
+
+      /*********************************************
+      *
+      *   Write a blank color table.
+      *   It has 256 entries (number of colors)
+      *   that are each 4 bytes.
+      *
+      *********************************************/
+
+    buffer[0] = 0x00;
+
+    for(i=0; i<(256*4); i++)
+        fwrite(buffer, 1, 1, fp);
+
+      /*********************************************
+      *
+      *   Write a zero image.  
+      *
+      *********************************************/
+
+    buffer[0] = 0x00;
+
+    for(i=0; i<bmheader->sizeofbitmap; i++)
+        fwrite(buffer, 1, 1, fp);
+
+    fclose(fp);
+}  /* ends create_allocate_bmp_file */
+
+void write_bmp_image(const char* file_name, short **array)
+{
+    char   *buffer;
+    FILE   *image_file;
+    int    pad = 0;
+    int    i, j;
+    long   height = 0, width = 0;
+    struct bitmapheader  bmheader;
+    struct bmpfileheader file_header;
+    struct ctstruct rgb[GRAY_LEVELS+1];
+    union  short_char_union scu;
+
+    read_bmp_file_header(file_name, &file_header);
+    read_bm_header(file_name, &bmheader);
+
+    height = bmheader.height;
+    width  = bmheader.width;
+    if(height < 0) 
+        height = height*(-1);
+
+    buffer = (char *) malloc(width * sizeof(char ));
+    for(i=0; i<width; i++)
+        buffer[i] = '\0';
+
+    image_file = fopen(file_name, "rb+");
+
+    /****************************************
+    *
+    *   Write the color table first.
+    *
+    ****************************************/
+
+    fseek(image_file, 54, SEEK_SET);
+    for(i=0; i<GRAY_LEVELS+1; i++){
+        rgb[i].blue  = i;
+        rgb[i].green = i;
+        rgb[i].red   = i;
+    }  /* ends loop over i */
+
+    for(i=0; i<bmheader.colorsused; i++){
+        buffer[0] = rgb[i].blue;
+        fwrite(buffer , 1, 1, image_file);
+        buffer[0] = rgb[i].green;
+        fwrite(buffer , 1, 1, image_file);
+        buffer[0] = rgb[i].red;
+        fwrite(buffer , 1, 1, image_file);
+        buffer[0] = 0x00;
+        fwrite(buffer , 1, 1, image_file);
+    }  /* ends loop over i */
+
+    fseek(image_file, file_header.bitmapoffset, SEEK_SET);
+
+    pad = calculate_pad(width);
+
+    for(i=0; i<height; i++){
+        for(j=0; j<width; j++){
+
+            if(bmheader.bitsperpixel == 8){
+                scu.s_num = 0;
+                if(bmheader.height > 0)
+                    scu.s_num = array[height-1-i][j];
+                else
+                    scu.s_num = array[i][j];
+                buffer[j] = scu.s_alpha[0];
+            }  /* ends if bits_per_pixel == 8 */
+            else{
+                printf("\nERROR bitsperpixel is not 8");
+                exit(1);
+            }
+        }  /* ends loop over j */
+
+        fwrite(buffer, 1, width, image_file);
+
+        if(pad != 0){
+            for(j=0; j<pad; j++)
+                buffer[j] = 0x00;
+            fwrite(buffer, 1, pad, image_file);
+        }  /* ends if pad != 0 */
+
+    }  /* ends loop over i */
+
+    fclose(image_file);
+    free(buffer);
+}  /* ends write_bmp_image */
+
+void read_bmp_file_header(const char *file_name, struct bmpfileheader *file_header)
+{
+   char  buffer[10];
+   short ss;
+   unsigned long  ull;
+   unsigned short uss;
+   FILE     *fp;
+
+   fp = fopen(file_name, "rb");
+
+   fread(buffer, 1, 2, fp);
+   extract_ushort_from_buffer(buffer, 1, 0, &uss);
+   file_header->filetype = uss;
+
+   fread(buffer, 1, 4, fp);
+   extract_ulong_from_buffer(buffer, 1, 0, &ull);
+   file_header->filesize = ull;
+
+   fread(buffer, 1, 2, fp);
+   extract_short_from_buffer(buffer, 1, 0, &ss);
+   file_header->reserved1 = ss;
+
+   fread(buffer, 1, 2, fp);
+   extract_short_from_buffer(buffer, 1, 0, &ss);
+   file_header->reserved2 = ss;
+
+   fread(buffer, 1, 4, fp);
+   extract_ulong_from_buffer(buffer, 1, 0, &ull);
+   file_header->bitmapoffset = ull;
+
+   fclose(fp);
+
+}  /* ends read_bmp_file_header */
+
+void read_bm_header(const char* file_name, struct bitmapheader *bmheader)
+{
+    char  buffer[10];
+    long  ll;
+    unsigned long  ull;
+    unsigned short uss;
+    FILE *fp;
+
+    fp = fopen(file_name, "rb");
+
+    /****************************************
+    *
+    *   Seek past the first 14 byte header.
+    *
+    ****************************************/
+
+    fseek(fp, 14, SEEK_SET);
+
+    fread(buffer, 1, 4, fp);
+    extract_ulong_from_buffer(buffer, 1, 0, &ull);
+    bmheader->size = ull;
+
+    fread(buffer, 1, 4, fp);
+    extract_long_from_buffer(buffer, 1, 0, &ll);
+    bmheader->width = ll;
+
+    fread(buffer, 1, 4, fp);
+    extract_long_from_buffer(buffer, 1, 0, &ll);
+    bmheader->height = ll;
+
+    fread(buffer, 1, 2, fp);
+    extract_ushort_from_buffer(buffer, 1, 0, &uss);
+    bmheader->planes = uss;
+
+    fread(buffer, 1, 2, fp);
+    extract_ushort_from_buffer(buffer, 1, 0, &uss);
+    bmheader->bitsperpixel = uss;
+
+    fread(buffer, 1, 4, fp);
+    extract_ulong_from_buffer(buffer, 1, 0, &ull);
+    bmheader->compression = ull;
+
+    fread(buffer, 1, 4, fp);
+    extract_ulong_from_buffer(buffer, 1, 0, &ull);
+    bmheader->sizeofbitmap = ull;
+
+    fread(buffer, 1, 4, fp);
+    extract_ulong_from_buffer(buffer, 1, 0, &ull);
+    bmheader->horzres = ull;
+
+    fread(buffer, 1, 4, fp);
+    extract_ulong_from_buffer(buffer, 1, 0, &ull);
+    bmheader->vertres = ull;
+
+    fread(buffer, 1, 4, fp);
+    extract_ulong_from_buffer(buffer, 1, 0, &ull);
+    bmheader->colorsused = ull;
+
+    fread(buffer, 1, 4, fp);
+    extract_ulong_from_buffer(buffer, 1, 0, &ull);
+    bmheader->colorsimp = ull;
+
+    fclose(fp);
+}  /* ends read_bm_header */
+
+void extract_long_from_buffer(char buffer[], int lsb, int start, long* number)
+{
+    union long_char_union lcu;
+
+    if(lsb == 1){
+        lcu.l_alpha[0] = buffer[start+0];
+        lcu.l_alpha[1] = buffer[start+1];
+        lcu.l_alpha[2] = buffer[start+2];
+        lcu.l_alpha[3] = buffer[start+3];
+    }  /* ends if lsb = 1 */
+
+    if(lsb == 0){
+        lcu.l_alpha[0] = buffer[start+3];
+        lcu.l_alpha[1] = buffer[start+2];
+        lcu.l_alpha[2] = buffer[start+1];
+        lcu.l_alpha[3] = buffer[start+0];
+    }  /* ends if lsb = 0      */
+
+    *number = lcu.l_num;
+    }  /* ends extract_long_from_buffer */
+
+void extract_ulong_from_buffer(char buffer[], int lsb, int start,unsigned long* number)
+{
+    union ulong_char_union lcu;
+
+    if(lsb == 1){
+        lcu.l_alpha[0] = buffer[start+0];
+        lcu.l_alpha[1] = buffer[start+1];
+        lcu.l_alpha[2] = buffer[start+2];
+        lcu.l_alpha[3] = buffer[start+3];
+    }  /* ends if lsb = 1 */
+
+    if(lsb == 0){
+        lcu.l_alpha[0] = buffer[start+3];
+        lcu.l_alpha[1] = buffer[start+2];
+        lcu.l_alpha[2] = buffer[start+1];
+        lcu.l_alpha[3] = buffer[start+0];
+    }  /* ends if lsb = 0      */
+    *number = lcu.l_num;
+}  /* ends extract_ulong_from_buffer */
+
+void extract_short_from_buffer(char buffer[], int lsb, int start, short* number)
+{
+    union short_char_union lcu;
+
+    if(lsb == 1){
+        lcu.s_alpha[0] = buffer[start+0];
+        lcu.s_alpha[1] = buffer[start+1];
+    }  /* ends if lsb = 1 */
+
+    if(lsb == 0){
+        lcu.s_alpha[0] = buffer[start+1];
+        lcu.s_alpha[1] = buffer[start+0];
+    }  /* ends if lsb = 0      */
+
+    *number = lcu.s_num;
+}  /* ends extract_short_from_buffer */
+
+void extract_ushort_from_buffer(char buffer[], int lsb, int start, unsigned short* number)
+{
+    union ushort_char_union lcu;
+
+    if(lsb == 1){
+        lcu.s_alpha[0] = buffer[start+0];
+        lcu.s_alpha[1] = buffer[start+1];
+    }  /* ends if lsb = 1 */
+
+    if(lsb == 0){
+        lcu.s_alpha[0] = buffer[start+1];
+        lcu.s_alpha[1] = buffer[start+0];
+    }  /* ends if lsb = 0      */
+
+    *number = lcu.s_num;
+}  /* ends extract_ushort_from_buffer */
+
+void insert_short_into_buffer(char buffer[], int start, short number)
+{
+    union short_char_union lsu;
+
+    lsu.s_num       = number;
+    buffer[start+0] = lsu.s_alpha[0];
+    buffer[start+1] = lsu.s_alpha[1];
+
+}  /* ends insert_short_into_buffer */
+
+void insert_ushort_into_buffer(char buffer[], int start, unsigned short number)
+{
+    union ushort_char_union lsu;
+
+    lsu.s_num       = number;
+    buffer[start+0] = lsu.s_alpha[0];
+    buffer[start+1] = lsu.s_alpha[1];
+}  /* ends insert_short_into_buffer */
+
+void insert_long_into_buffer(char buffer[], int start, long number)  
+{
+    union long_char_union lsu;
+
+    lsu.l_num       = number;
+    buffer[start+0] = lsu.l_alpha[0];
+    buffer[start+1] = lsu.l_alpha[1];
+    buffer[start+2] = lsu.l_alpha[2];
+    buffer[start+3] = lsu.l_alpha[3];
+}  /* ends insert_short_into_buffer */
+
+void insert_ulong_into_buffer(char buffer[], int start, unsigned long number)
+{
+    union ulong_char_union lsu;
+
+    lsu.l_num       = number;
+    buffer[start+0] = lsu.l_alpha[0];
+    buffer[start+1] = lsu.l_alpha[1];
+    buffer[start+2] = lsu.l_alpha[2];
+    buffer[start+3] = lsu.l_alpha[3];
+}  /* ends insert_ulong_into_buffer */
+
+int does_not_exist(const char* file_name)
+{
+    FILE *image_file;
+    int  result;
+
+    result = 1;
+    image_file = fopen(file_name, "rb");
+    if(image_file != NULL){
+        result = 0;
+        fclose(image_file);
+    }
+    return(result);
+}  /* ends does_not_exist */
 

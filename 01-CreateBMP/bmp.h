@@ -1,72 +1,102 @@
 #ifndef	_BMP_H_
 #define	_BMP_H_
 
-#include<stdbool.h>
+#define GRAY_LEVELS          255
 
-#define		bmp_ret		int
+struct bmpfileheader{
+    unsigned short  filetype;
+    unsigned long   filesize;
+    short  reserved1;
+    short  reserved2;
+    unsigned long   bitmapoffset;
+};
 
-#define		bmp_ok				0
-#define		bmp_argerr			-1
-#define		bmp_out_of_memory	-2 		
-#define		bmp_fileopen_failed	-3
+struct bitmapheader{
+    unsigned long   size;
+    long   width;
+    long   height;
+    unsigned short  planes;
+    unsigned short  bitsperpixel;
+    unsigned long   compression;
+    unsigned long   sizeofbitmap;
+    unsigned long   horzres;
+    unsigned long   vertres;
+    unsigned long   colorsused;
+    unsigned long   colorsimp;
+};
 
-/* *
-* @brief bmp文件类型
-*/
-typedef enum
-{
-	BMP_1WIDE = 1,
-	BMP_2WIDE = 2,
-	BMP_8WIDE = 8,
-	BMP_16WIDE = 16,
-	BMP_24WIDE = 24,
-	BMP_32WIDE = 32
-}bmp_bitwide_t;
+struct ctstruct{
+    unsigned char blue;
+    unsigned char green;
+    unsigned char red;
+};
+
+union colortable_union{
+    struct colortable
+    {
+        unsigned char blue;
+        unsigned char green;
+        unsigned char red;
+        unsigned char reserved;
+    }colortable;
+    unsigned int l_num;
+};
+
+union short_char_union{
+    short s_num;
+    char  s_alpha[2];
+};
+
+union int_char_union{
+    int  i_num;
+    char i_alpha[2];
+};
+
+union long_char_union{
+    int  l_num;
+    char  l_alpha[4];
+};
+
+union float_char_union{
+    float f_num;
+    char  f_alpha[4];
+};
+
+union ushort_char_union{
+    short s_num;
+    char  s_alpha[2];
+};
+
+union uint_char_union{
+    int  i_num;
+    char i_alpha[2];
+};
+
+union ulong_char_union{
+    int  l_num;
+    char  l_alpha[4];
+};
 
 
-/* *
-* @brief bmp数据信息
-*/
-typedef struct
-{
-	unsigned int unWidth;
-	unsigned int unHeight;
-	unsigned char **ucImgData;
-	bmp_bitwide_t tImgWide;
-}bmp_datainfo_t;
+int get_image_size(const char* file_name, long* rows, long* cols);
+void extract_long_from_buffer(char buffer[], int lsb, int start, long* number);
+void extract_ulong_from_buffer(char buffer[], int lsb, int start,unsigned long* number);
+void extract_short_from_buffer(char buffer[], int lsb, int start, short* number);
+void extract_ushort_from_buffer(char buffer[], int lsb, int start, unsigned short* number);
+void insert_short_into_buffer(char buffer[], int start, short number);
+void insert_ushort_into_buffer(char buffer[], int start, unsigned short number);
+void insert_long_into_buffer(char buffer[], int start, long number);
+void insert_ulong_into_buffer(char buffer[], int start, unsigned long number);
+short **allocate_image_array(long length, long width);
+int free_image_array(short **the_array, long length);
+void create_allocate_bmp_file(const char* file_name, struct bmpfileheader* file_header, struct bitmapheader* bmheader);
+void read_bmp_file_header(const char* file_name, struct bmpfileheader* file_header);
+void read_bm_header(const char* file_name, struct bitmapheader* bmheader);
+int calculate_pad(long width);
+void write_bmp_image(const char* file_name, short **array);
+int does_not_exist(const char* file_name);
+union colortable_union* read_allocate_colortable(const char* file_name, struct bitmapheader* bmheader);
+void free_colortable(union colortable_union* colortable);
 
-
-/**
-* @brief BMP_IsBmp
-* @params filepath表示待检测的bmp文件路径
-* @note 通过文件魔术信息判断是否是bmp文件
-* @return true表示是bmp文件，false表示非bmp文件
-*/
-bool BMP_IsBmp(unsigned char *ucFilepath);
-
-/**
-* @brief BMP_GetBmpInfo
-* @params ucFilepath表示bmp文件路径，unWidth表示图像宽度，unHeight表示图像高度，bmptype表示bmp类型
-* @note 读取信息头数据，提取相应的数据信息
-* @return 返回bmp错误码
-*/
-bmp_ret	BMP_GetBmpInfo(unsigned char *ucFilepath,unsigned int *unWidth,unsigned int *unHeight,bmp_bitwide_t *bmptype);
-
-/**
-* @brief BMP_GetBmpData
-* @params ucFilepath表示待获取的bmp文件路径，tInfo表示获取图像数据信息指针
-* @note 读取bmp文件的图像数据
-* @return 返回bmp错误码
-*/
-bmp_ret BMP_GetBmpData(unsigned char *ucFilepath, bmp_datainfo_t *tInfo);
-
-/**
-* @brief BMP_EncapsulateBmp
-* @params ucFilepath待生成的文件路径, tInfo表示待封装的图像数据信息指针
-* @note 读取bmp文件的图像数据
-* @return 返回bmp错误码
-*/
-bmp_ret BMP_EncapsulateBmp(unsigned char *ucFilepath,bmp_datainfo_t *tInfo);
 
 #endif
-

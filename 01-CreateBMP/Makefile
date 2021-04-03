@@ -1,22 +1,24 @@
-CC:=gcc
-INCLUDE:=-I.
-CXXFLAGS:=-Wall -g -std=c99
-LDFLAGS:=
+CC=gcc
+LD=-lm
 
-SRCS:=$(wildcard *.c)
-OBJS:=$(patsubst %c,%o,$(SRCS))
+SRCS=$(wildcard *.c)
+OBJS=$(patsubst %c,%o,$(SRCS))
 
-TARGET:=bmp
+
+INCLUDE= -I .
+CFLAGS= -w -g -lm -O0 
+
+TARGET=a.out
 
 .PHONY:all clean
 
 all:$(TARGET)
 
 $(TARGET):$(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CC) -o $@ $^ $(LD)
 
-$(OBJS):%o:%c
-	$(CC) -c $^ -o $@ $(CXXFLAGS) $(INCLUDE)
+%o:%c
+	$(CC) -c $^ $(INCLUDE) $(CFLAGS)
 
 clean:
 	rm -fr $(OBJS) $(TARGET)
